@@ -1,0 +1,356 @@
+import hashlib
+import json
+import pickle
+import numpy as np
+import pandas as pd
+from typing import Dict, Any, List, Tuple
+import datetime
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import warnings
+warnings.filterwarnings('ignore')
+
+# Mock blockchain interface (in production, you'd use a real blockchain API)
+class MockBlockchain:
+    def __init__(self):
+        self.chain = []
+        self.pending_transactions = []
+    
+    def add_transaction(self, data: Dict) -> str:
+        """Add transaction to pending block"""
+        transaction_id = hashlib.sha256(json.dumps(data).encode()).hexdigest()
+        self.pending_transactions.append({
+            'id': transaction_id,
+            'data': data,
+            'timestamp': datetime.datetime.now().isoformat()
+        })
+        return transaction_id
+    
+    def mine_block(self) -> str:
+        """Mine a new block with pending transactions"""
+        if not self.pending_transactions:
+            return None
+        
+        block = {
+            'index': len(self.chain),
+            'timestamp': datetime.datetime.now().isoformat(),
+            'transactions': self.pending_transactions.copy(),
+            'previous_hash': self.chain[-1]['hash'] if self.chain else '0'*64,
+            'nonce': 0
+        }
+        
+        # Simple proof-of-work
+        while not self.valid_proof(block):
+            block['nonce'] += 1
+        
+        block_hash = self.calculate_hash(block)
+        block['hash'] = block_hash
+        
+        self.chain.append(block)
+        self.pending_transactions = []
+        
+        return block_hash
+    
+    def calculate_hash(self, block: Dict) -> str:
+        """Calculate SHA-256 hash of block"""
+        block_string = json.dumps(block, sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+    
+    def valid_proof(self, block: Dict, difficulty: int = 4) -> bool:
+        """Check if block hash meets difficulty requirement"""
+        test_block = block.copy()
+        test_block['hash'] = self.calculate_hash(test_block)
+        return test_block['hash'].startswith('0' * difficulty)
+    
+    def verify_transaction(self, transaction_id: str) -> bool:
+        """Verify if transaction exists in blockchain"""
+        for block in self.chain:
+            for tx in block['transactions']:
+                if tx['id'] == transaction_id:
+                    return True
+        return False
+
+class ReproducibleMLModel:
+    def __init__(self, model=None):
+        self.model = model
+        self.training_metadata = {}
+        self.data_hash = None
+        self.model_hash = None
+        self.blockchain = MockBlockchain()
+        self.transaction_id = None
+    
+    def create_data_hash(self, X: np.ndarray, y: np.ndarray) -> str:
+        """Create cryptographic hash of training data"""
+        # Convert data to bytes for hashing
+        if isinstance(X, pd.DataFrame):
+            X_bytes = X.values.tobytes()
+        else:
+            X_bytes = X.tobytes()
+        
+        if isinstance(y, pd.Series):
+            y_bytes = y.values.tobytes()
+        else:
+            y_bytes = y.tobytes()
+        
+        # Combine and hash
+        combined = X_bytes + y_bytes
+        self.data_hash = hashlib.sha256(combined).hexdigest()
+        return self.data_hash
+    
+    def create_model_hash(self, model_params: Dict) -> str:
+        """Create cryptographic hash of model architecture and parameters"""
+        # Serialize model parameters
+        params_bytes = json.dumps(model_params, sort_keys=True).encode()
+        self.model_hash = hashlib.sha256(params_bytes).hexdigest()
+        return self.model_hash
+    
+    def train(self, X: np.ndarray, y: np.ndarray, 
+              test_size: float = 0.2, random_state: int = 42, 
+              **model_params) -> Dict:
+        """Train model with reproducible settings"""
+        
+        # Store training metadata
+        self.training_metadata = {
+            'test_size': test_size,
+            'random_state': random_state,
+            'model_params': model_params,
+            'training_timestamp': datetime.datetime.now().isoformat(),
+            'data_shape': X.shape,
+            'target_shape': y.shape if hasattr(y, 'shape') else len(y)
+        }
+        
+        # Create data hash
+        data_hash = self.create_data_hash(X, y)
+        
+        # Create model hash
+        model_hash = self.create_model_hash(model_params)
+        
+        # Split data (reproducible)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state
+        )
+        
+        # Initialize and train model
+        self.model = RandomForestClassifier(**model_params, random_state=random_state)
+        self.model.fit(X_train, y_train)
+        
+        # Calculate metrics
+        y_pred = self.model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+        
+        # Store results
+        results = {
+            'accuracy': accuracy,
+            'data_hash': data_hash,
+            'model_hash': model_hash,
+            'training_metadata': self.training_metadata
+        }
+        
+        # Register on blockchain
+        self._register_on_blockchain(results)
+        
+        return results
+    
+    def _register_on_blockchain(self, results: Dict) -> str:
+        """Register model metadata on blockchain"""
+        blockchain_data = {
+            'data_hash': results['data_hash'],
+            'model_hash': results['model_hash'],
+            'accuracy': results['accuracy'],
+            'metadata': results['training_metadata'],
+            'type': 'ml_model_registration'
+        }
+        
+        self.transaction_id = self.blockchain.add_transaction(blockchain_data)
+        return self.transaction_id
+    
+    def verify_model(self, X: np.ndarray, y: np.ndarray, 
+                    expected_accuracy: float = None, 
+                    tolerance: float = 0.01) -> Dict:
+        """Verify model reproducibility and blockchain registration"""
+        
+        # Verify blockchain registration
+        blockchain_verified = self.blockchain.verify_transaction(self.transaction_id)
+        
+        # Recreate data hash for verification
+        current_data_hash = self.create_data_hash(X, y)
+        data_hash_match = current_data_hash == self.data_hash
+        
+        # Verify model can be retrained to similar accuracy
+        verification_results = self._verify_training_reproducibility(
+            X, y, expected_accuracy, tolerance
+        )
+        
+        return {
+            'blockchain_verified': blockchain_verified,
+            'data_hash_match': data_hash_match,
+            'verification_results': verification_results,
+            'original_transaction_id': self.transaction_id
+        }
+    
+    def _verify_training_reproducibility(self, X: np.ndarray, y: np.ndarray,
+                                       expected_accuracy: float, tolerance: float) -> Dict:
+        """Verify that model training is reproducible"""
+        try:
+            # Retrain with same parameters
+            new_results = self.train(
+                X, y,
+                test_size=self.training_metadata['test_size'],
+                random_state=self.training_metadata['random_state'],
+                **self.training_metadata['model_params']
+            )
+            
+            # Check if accuracy is within tolerance
+            accuracy_match = True
+            if expected_accuracy is not None:
+                accuracy_diff = abs(new_results['accuracy'] - expected_accuracy)
+                accuracy_match = accuracy_diff <= tolerance
+            
+            return {
+                'reproducible': True,
+                'new_accuracy': new_results['accuracy'],
+                'accuracy_match': accuracy_match,
+                'accuracy_difference': abs(new_results['accuracy'] - expected_accuracy) if expected_accuracy else None
+            }
+            
+        except Exception as e:
+            return {
+                'reproducible': False,
+                'error': str(e)
+            }
+    
+    def save_model(self, filepath: str) -> None:
+        """Save model with metadata"""
+        model_data = {
+            'model': self.model,
+            'training_metadata': self.training_metadata,
+            'data_hash': self.data_hash,
+            'model_hash': self.model_hash,
+            'transaction_id': self.transaction_id
+        }
+        
+        with open(filepath, 'wb') as f:
+            pickle.dump(model_data, f)
+    
+    @classmethod
+    def load_model(cls, filepath: str) -> 'ReproducibleMLModel':
+        """Load model with metadata"""
+        with open(filepath, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        instance = cls(model_data['model'])
+        instance.training_metadata = model_data['training_metadata']
+        instance.data_hash = model_data['data_hash']
+        instance.model_hash = model_data['model_hash']
+        instance.transaction_id = model_data['transaction_id']
+        
+        return instance
+
+# Example usage and demonstration
+def demonstrate_system():
+    print("=== Blockchain-Verifiable Reproducible ML System ===\n")
+    
+    # Create sample data
+    from sklearn.datasets import make_classification
+    X, y = make_classification(n_samples=1000, n_features=20, random_state=42)
+    
+    # Initialize reproducible model system
+    reproducible_model = ReproducibleMLModel()
+    
+    print("1. Training model with reproducible settings...")
+    # Train model
+    results = reproducible_model.train(
+        X, y,
+        test_size=0.2,
+        random_state=42,
+        n_estimators=100,
+        max_depth=5
+    )
+    
+    print(f"   Initial Accuracy: {results['accuracy']:.4f}")
+    print(f"   Data Hash: {results['data_hash'][:16]}...")
+    print(f"   Model Hash: {results['model_hash'][:16]}...")
+    print(f"   Transaction ID: {reproducible_model.transaction_id[:16]}...\n")
+    
+    print("2. Mining block to confirm transaction...")
+    # Mine block to confirm transaction
+    block_hash = reproducible_model.blockchain.mine_block()
+    print(f"   Block mined: {block_hash[:16]}...\n")
+    
+    print("3. Verifying model reproducibility and blockchain registration...")
+    # Verify model
+    verification = reproducible_model.verify_model(X, y, results['accuracy'])
+    
+    print(f"   Blockchain Verified: {verification['blockchain_verified']}")
+    print(f"   Data Hash Match: {verification['data_hash_match']}")
+    print(f"   Reproducible: {verification['verification_results']['reproducible']}")
+    
+    if verification['verification_results']['reproducible']:
+        print(f"   New Accuracy: {verification['verification_results']['new_accuracy']:.4f}")
+        print(f"   Accuracy Match: {verification['verification_results']['accuracy_match']}")
+    
+    print("\n4. Saving and loading model...")
+    # Save and load model
+    reproducible_model.save_model('reproducible_model.pkl')
+    loaded_model = ReproducibleMLModel.load_model('reproducible_model.pkl')
+    
+    print(f"   Model loaded successfully: {loaded_model.model is not None}")
+    print(f"   Loaded transaction ID: {loaded_model.transaction_id[:16]}...")
+    
+    # Clean up
+    if os.path.exists('reproducible_model.pkl'):
+        os.remove('reproducible_model.pkl')
+    
+    return reproducible_model, verification
+
+# Advanced features
+class AdvancedReproducibleML(ReproducibleMLModel):
+    def __init__(self, model=None):
+        super().__init__(model)
+        self.experiment_tracking = []
+    
+    def track_experiment(self, experiment_name: str, parameters: Dict, 
+                        results: Dict) -> str:
+        """Track complete experiment on blockchain"""
+        experiment_data = {
+            'experiment_name': experiment_name,
+            'parameters': parameters,
+            'results': results,
+            'timestamp': datetime.datetime.now().isoformat(),
+            'type': 'ml_experiment'
+        }
+        
+        tx_id = self.blockchain.add_transaction(experiment_data)
+        self.experiment_tracking.append({
+            'name': experiment_name,
+            'tx_id': tx_id,
+            'data': experiment_data
+        })
+        
+        return tx_id
+    
+    def create_model_card(self) -> Dict:
+        """Generate model card with all reproducible information"""
+        return {
+            'model_type': type(self.model).__name__,
+            'training_metadata': self.training_metadata,
+            'data_hash': self.data_hash,
+            'model_hash': self.model_hash,
+            'blockchain_transaction': self.transaction_id,
+            'experiments': self.experiment_tracking,
+            'verification_url': f"https://blockchain-verifier.com/verify/{self.transaction_id}"
+        }
+
+if __name__ == "__main__":
+    # Run demonstration
+    model, verification = demonstrate_system()
+    
+    print("\n=== System Summary ===")
+    print("This system provides:")
+    print("1. Cryptographic hashing of data and model parameters")
+    print("2. Blockchain registration for tamper-proof verification")
+    print("3. Reproducible training with fixed random seeds")
+    print("4. Model verification against original training")
+    print("5. Complete audit trail for ML experiments")
