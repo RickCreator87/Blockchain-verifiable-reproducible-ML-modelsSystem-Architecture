@@ -1,0 +1,60 @@
+Blockchain-verifiable-reproducible-ML-modelsSystem-Architecture/
+├── .github/workflows/
+│   ├── aws.yml (updated)
+│   ├── gcp.yml
+│   └── azure.yml
+├── deployment/
+│   ├── terraform/
+│   │   ├── aws/
+│   │   ├── gcp/
+│   │   └── azure/
+│   ├── kubernetes/
+│   │   ├── manifests/
+│   │   └── helm-charts/
+│   └── docker/
+│       ├── Dockerfile
+│       ├── Dockerfile.gpu
+│       └── Dockerfile.light
+├── ml_frameworks/
+│   ├── pytorch/
+│   │   ├── trainer.py
+│   │   └── models/
+│   ├── tensorflow/
+│   │   ├── trainer.py
+│   │   └── models/
+│   ├── sklearn/
+│   │   ├── trainer.py
+│   │   └── models/
+│   └── xgboost/
+│       ├── trainer.py
+│       └── models/
+├── blockchain/
+│   ├── networks/
+│   │   ├── ethereum.py
+│   │   ├── polygon.py
+│   │   ├── bsc.py
+│   │   ├── solana.py
+│   │   └── hyperledger.py
+│   ├── contracts/
+│   │   ├── ModelRegistryV2.sol
+│   │   ├── ModelRegistryPolygon.sol
+│   │   └── ModelRegistryBSC.sol
+│   └── nft/
+│       ├── ModelNFT.sol
+│       └── deploy_nft.py
+├── cloud/
+│   ├── aws/
+│   │   ├── lambda_functions/
+│   │   ├── cloudformation/
+│   │   └── sagemaker/
+│   ├── gcp/
+│   │   ├── cloud_functions/
+│   │   └── vertex_ai/
+│   └── azure/
+│       ├── functions/
+│       └── ml_workspace/
+├── monitoring/
+│   ├── grafana/
+│   ├── prometheus/
+│   └── alerts/
+└── (Previous core files remain with updates)
