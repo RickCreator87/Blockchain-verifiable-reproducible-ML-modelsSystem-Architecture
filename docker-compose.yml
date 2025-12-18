@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # API Service
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/mlmodels
+      - REDIS_URL=redis://redis:6379/0
+      - ETHEREUM_RPC_URL=${ETHEREUM_RPC_URL}
+    volumes:
+      - ./model_storage:/app/model_storage
+    depends_on:
+      - db
+      - redis
+      - ganache
+    command: uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=mlmodels
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # Local blockchain for testing
+  ganache:
+    image: trufflesuite/ganache-cli:latest
+    command: ganache-cli -h 0.0.0.0 -m "your mnemonic here" --db /data
+    ports:
+      - "8545:8545"
+    volumes:
+      - ganache_data:/data
+
+  # MLflow Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    ports:
+      - "5000:5000"
+    command: mlflow server --backend-store-uri postgresql://postgres:password@db:5432/mlmodels --default-artifact-root ./mlruns --host 0.0.0.0
+    depends_on:
+      - db
+
+  # Celery Worker for async tasks
+  worker:
+    build: .
+    command: celery -A api.tasks worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - db
+
+volumes:
+  postgres_data:
+  ganache_data:
