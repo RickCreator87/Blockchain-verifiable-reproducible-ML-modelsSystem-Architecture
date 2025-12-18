@@ -1,0 +1,28 @@
+1. Save all files to your repository with the exact structure shown above.
+2. Make the setup script executable:
+   ```bash
+   chmod +x setup.sh
+   ```
+3. Run the setup:
+   ```bash
+   ./setup.sh
+   ```
+4. Configure your environment:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Infura URL and private key
+   ```
+5. Complete workflow:
+   ```bash
+   # 1. Train a model
+   python run_all.py train --dataset iris --epochs 50
+   
+   # 2. Deploy contract (testnet)
+   python run_all.py deploy --network sepolia
+   
+   # 3. Register model (use hash from training)
+   python run_all.py register --model-hash YOUR_MODEL_HASH --version v1.0.0
+   
+   # 4. Start API server
+   python run_all.py serve --port 8000
+   ```
