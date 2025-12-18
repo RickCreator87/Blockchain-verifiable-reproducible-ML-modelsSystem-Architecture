@@ -1,0 +1,29 @@
+Blockchain-verifiable-reproducible-ML-modelsSystem-Architecture/
+├── .github/workflows/aws.yml (already exists)
+├── README.md
+├── requirements.txt
+├── config.yaml
+├── .env.example
+├── docker-compose.yml
+├── model_training/
+│   ├── train.py
+│   ├── versioning.py
+│   └── model_manager.py
+├── blockchain/
+│   ├── contracts/
+│   │   └── ModelRegistry.sol
+│   ├── deploy.py
+│   ├── interact.py
+│   └── utils.py
+├── api/
+│   ├── app.py
+│   ├── verification.py
+│   └── routes/
+│       ├── models.py
+│       └── verify.py
+├── tests/
+│   ├── test_training.py
+│   └── test_blockchain.py
+└── docs/
+    ├── architecture_diagram.md
+    └── EXAMPLES.md
