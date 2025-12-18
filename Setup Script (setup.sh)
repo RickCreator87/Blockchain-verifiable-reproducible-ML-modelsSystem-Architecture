@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Blockchain-Verifiable ML Models Setup Script
+
+echo "Setting up Blockchain-Verifiable ML Models System..."
+echo "=================================================="
+
+# Check Python version
+python_version=$(python3 --version 2>&1 | awk '{print $2}')
+echo "Python version: $python_version"
+
+if [[ $python_version < "3.8" ]]; then
+    echo "Error: Python 3.8 or higher required"
+    exit 1
+fi
+
+# Create virtual environment
+echo "Creating virtual environment..."
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python dependencies
+echo "Installing Python dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Install Solidity compiler
+echo "Installing Solidity compiler..."
+pip install py-solc-x
+python3 -c "import solcx; solcx.install_solc('0.8.19')"
+
+# Create necessary directories
+echo "Creating directories..."
+mkdir -p model_storage
+mkdir -p logs
+mkdir -p data
+mkdir -p blockchain/compiled
+
+# Copy environment file
+if [ ! -f .env ]; then
+    echo "Creating .env file from template..."
+    cp .env.example .env
+    echo "Please edit .env file with your configuration"
+fi
+
+# Initialize git hooks
+echo "Setting up git hooks..."
+cp -n scripts/git-hooks/* .git/hooks/ 2>/dev/null || echo "Git hooks directory not found"
+
+# Set up MLflow
+echo "Initializing MLflow..."
+mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlruns &
+MLFLOW_PID=$!
+sleep 2
+
+# Test installations
+echo "Running tests..."
+python -m pytest tests/ -v
+
+# Kill MLflow server
+kill $MLFLOW_PID 2>/dev/null
+
+echo "=================================================="
+echo "Setup complete!"
+echo ""
+echo "Next steps:"
+echo "1. Edit .env file with your configuration"
+echo "2. For blockchain: Set ETHEREUM_RPC_URL and PRIVATE_KEY"
+echo "3. Train your first model: python run_all.py train"
+echo "4. Deploy contract: python run_all.py deploy --network sepolia"
+echo "5. Start API: python run_all.py serve"
+echo ""
+echo "Documentation: See docs/ directory for more information"
