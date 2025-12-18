@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""
+Complete workflow script for Blockchain-Verifiable ML Models
+"""
+
+import argparse
+import sys
+import os
+from pathlib import Path
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Blockchain-Verifiable ML Models Complete Workflow'
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    
+    # Train command
+    train_parser = subparsers.add_parser('train', help='Train a new model')
+    train_parser.add_argument('--dataset', default='iris', help='Dataset to use')
+    train_parser.add_argument('--epochs', type=int, default=100, help='Training epochs')
+    
+    # Register command
+    register_parser = subparsers.add_parser('register', help='Register model on blockchain')
+    register_parser.add_argument('--model-hash', required=True, help='Model hash to register')
+    register_parser.add_argument('--version', default='v1.0.0', help='Model version')
+    
+    # Verify command
+    verify_parser = subparsers.add_parser('verify', help='Verify a model')
+    verify_parser.add_argument('--model-path', required=True, help='Path to model file')
+    verify_parser.add_argument('--expected-hash', help='Expected hash (optional)')
+    
+    # Deploy command
+    deploy_parser = subparsers.add_parser('deploy', help='Deploy smart contract')
+    deploy_parser.add_argument('--network', default='sepolia', help='Blockchain network')
+    
+    # Server command
+    server_parser = subparsers.add_parser('serve', help='Start API server')
+    server_parser.add_argument('--port', type=int, default=8000, help='Port to run on')
+    
+    args = parser.parse_args()
+    
+    if args.command == 'train':
+        from model_training.train import ReproducibleModelTrainer
+        trainer = ReproducibleModelTrainer()
+        result = trainer.train_model(args.dataset, epochs=args.epochs)
+        print(f"\nModel trained successfully!")
+        print(f"Hash: {result['model_hash']}")
+        print(f"Path: {result['model_path']}")
+        
+    elif args.command == 'register':
+        from blockchain.interact import BlockchainInteractor
+        interactor = BlockchainInteractor()
+        
+        # You would typically get metadata from the model file
+        metadata_hash = "0x" + "0" * 64  # Placeholder
+        tx_hash = interactor.register_model(
+            args.model_hash, 
+            metadata_hash, 
+            args.version
+        )
+        print(f"Model registered!")
+        print(f"Transaction: {tx_hash}")
+        
+    elif args.command == 'verify':
+        from model_training.versioning import ModelVersioner
+        versioner = ModelVersioner()
+        
+        if args.expected_hash:
+            verified, actual_hash = versioner.verify_model(
+                args.model_path, 
+                args.expected_hash
+            )
+            if verified:
+                print(f"✅ Model verified successfully!")
+            else:
+                print(f"❌ Model verification failed!")
+                print(f"Expected: {args.expected_hash}")
+                print(f"Actual: {actual_hash}")
+        else:
+            # Just calculate hash
+            file_hash = versioner.calculate_file_hash(args.model_path)
+            print(f"Model hash: {file_hash}")
+            
+    elif args.command == 'deploy':
+        from blockchain.deploy import ContractDeployer
+        deployer = ContractDeployer()
+        address, _ = deployer.deploy_contract('blockchain/contracts/ModelRegistry.sol')
+        print(f"Contract deployed at: {address}")
+        
+    elif args.command == 'serve':
+        import subprocess
+        subprocess.run([
+            "uvicorn", "api.app:app", 
+            "--host", "0.0.0.0", 
+            "--port", str(args.port),
+            "--reload"
+        ])
+        
+    else:
+        parser.print_help()
+        
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
