@@ -1,0 +1,36 @@
+# Configuration for Blockchain-Verifiable ML System
+
+blockchain:
+  network: "sepolia"  # ethereum, polygon, sepolia (testnet)
+  contract_address: ""  # Will be populated after deployment
+  gas_limit: 3000000
+  confirmation_blocks: 3
+
+model:
+  storage_path: "./model_storage"
+  hash_algorithm: "sha256"
+  compression: "zip"
+  version_format: "v{MAJOR}.{MINOR}.{PATCH}"
+
+training:
+  default_epochs: 100
+  validation_split: 0.2
+  random_seed: 42  # For reproducibility
+  checkpoint_frequency: 10
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  workers: 4
+  rate_limit_per_minute: 60
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/system.log"
+
+database:
+  type: "sqlite"  # or "postgresql"
+  path: "./data/models.db"
+  backup_frequency: "daily"
